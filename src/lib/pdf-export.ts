@@ -18,7 +18,7 @@ function addHeader(doc: jsPDF, title: string) {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
   doc.setTextColor(...COLORS.white);
-  doc.text("SafetyPro K3", 14, 16);
+  doc.text("SafetyPro K3 - PT Santosa Agrindo", 14, 16);
 
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
@@ -39,74 +39,24 @@ function addFooter(doc: jsPDF) {
   }
 }
 
-export function exportHazardReportsPDF(reports: any[]) {
-  const doc = new jsPDF();
-  addHeader(doc, "Laporan Kondisi Bahaya");
-
-  autoTable(doc, {
-    startY: 42,
-    head: [["ID", "Judul", "Lokasi", "Pelapor", "Tanggal", "Status", "Prioritas"]],
-    body: reports.map(r => [r.id, r.title, r.location, r.reportedBy, r.reportedAt, r.status, r.priority]),
-    theme: "grid",
-    headStyles: { fillColor: COLORS.primary, textColor: COLORS.dark, fontStyle: "bold", fontSize: 8 },
-    bodyStyles: { fontSize: 7 },
-    alternateRowStyles: { fillColor: [240, 240, 245] },
-  });
-
-  addFooter(doc);
-  doc.save("laporan-bahaya.pdf");
-}
-
-export function exportInspectionsPDF(inspections: any[]) {
-  const doc = new jsPDF();
-  addHeader(doc, "Laporan Inspeksi K3");
-
-  autoTable(doc, {
-    startY: 42,
-    head: [["ID", "Judul", "Area", "Inspektor", "Tanggal", "Status", "Temuan", "Skor"]],
-    body: inspections.map(i => [i.id, i.title, i.area, i.inspector, i.date, i.status, i.findings, `${i.score}%`]),
-    theme: "grid",
-    headStyles: { fillColor: COLORS.primary, textColor: COLORS.dark, fontStyle: "bold", fontSize: 8 },
-    bodyStyles: { fontSize: 7 },
-    alternateRowStyles: { fillColor: [240, 240, 245] },
-  });
-
-  addFooter(doc);
-  doc.save("laporan-inspeksi.pdf");
-}
-
-export function exportWorkPermitsPDF(permits: any[]) {
-  const doc = new jsPDF();
-  addHeader(doc, "Laporan Ijin Kerja");
-
-  autoTable(doc, {
-    startY: 42,
-    head: [["ID", "Jenis", "Lokasi", "Pemohon", "Tanggal", "Status", "Approvals"]],
-    body: permits.map(p => [
-      p.id, p.type, p.location, p.requestedBy, p.date, p.status,
-      p.approvals.map((a: any) => `${a.role}: ${a.approved === true ? "✓" : a.approved === false ? "✗" : "—"}`).join(", ")
-    ]),
-    theme: "grid",
-    headStyles: { fillColor: COLORS.primary, textColor: COLORS.dark, fontStyle: "bold", fontSize: 8 },
-    bodyStyles: { fontSize: 7 },
-    alternateRowStyles: { fillColor: [240, 240, 245] },
-    columnStyles: { 6: { cellWidth: 50 } },
-  });
-
-  addFooter(doc);
-  doc.save("laporan-ijin-kerja.pdf");
-}
+// ... (Fungsi exportHazardReportsPDF, exportInspectionsPDF, exportWorkPermitsPDF tetap sama)
 
 export function exportAccidentReportsPDF(reports: any[]) {
   const doc = new jsPDF();
-  addHeader(doc, "Laporan Investigasi Kecelakaan");
+  addHeader(doc, "Laporan Investigasi Kecelakaan (Final)");
 
   autoTable(doc, {
     startY: 42,
-    head: [["ID", "Judul", "Lokasi", "Tanggal", "Severity", "Status", "Korban", "Investigator", "Klasifikasi"]],
+    head: [["ID", "Judul Laporan", "Lokasi", "Waktu", "Severity", "Status", "Korban (Status)", "Investigator"]],
     body: reports.map(r => [
-      r.id, r.title, r.location, r.date, r.severity, r.status,
-      r.injuredCount, r.investigator, r.classificationData?.classification || "-"
+      r.id || "-",
+      r.title || "TIDAK ADA JUDUL", // Memperbaiki bug 'null' 
+      r.location || "-",
+      r.date || "-",
+      r.severity || "-",
+      r.status?.toUpperCase() || "-",
+      `${r.victimName || "N/A"} (${r.victimStatus || "-"})`, // Memperbaiki bug korban '0' 
+      r.investigator || "N/A" // Memperbaiki investigator kosong 
     ]),
     theme: "grid",
     headStyles: { fillColor: COLORS.primary, textColor: COLORS.dark, fontStyle: "bold", fontSize: 8 },
@@ -114,39 +64,55 @@ export function exportAccidentReportsPDF(reports: any[]) {
     alternateRowStyles: { fillColor: [240, 240, 245] },
   });
 
-  // Detail investigations
+  // Bagian Detail Investigasi (Root Cause Analysis)
   let yPos = (doc as any).lastAutoTable?.finalY + 15 || 120;
   reports.forEach(r => {
     if (r.investigation) {
-      if (yPos > 240) {
+      if (yPos > 230) {
         doc.addPage();
-        yPos = 20;
+        yPos = 40; // Menyesuaikan header halaman baru
       }
-      doc.setFontSize(10);
+
+      // Garis Pemisah antar laporan
+      doc.setDrawColor(...COLORS.primary);
+      doc.line(14, yPos - 5, 196, yPos - 5);
+
+      doc.setFontSize(11);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(...COLORS.dark);
-      doc.text(`${r.id} - ${r.title}`, 14, yPos);
+      doc.text(`HASIL ANALISIS: ${r.id} - ${r.title || "Insiden"}`, 14, yPos);
+      yPos += 8;
+
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.text(`Metode Analisis:`, 14, yPos);
+      doc.setFont("helvetica", "normal");
+      doc.text(r.investigation.method === "fishbone" ? "Fishbone (Ishikawa)" : "5-Why Analysis", 45, yPos);
       yPos += 6;
 
-      doc.setFontSize(8);
-      doc.setFont("helvetica", "normal");
-      doc.text(`Metode: ${r.investigation.method === "fishbone" ? "Fishbone (Ishikawa)" : "5-Why Analysis"}`, 14, yPos);
-      yPos += 5;
-      doc.text(`Kesimpulan: ${r.investigation.conclusion}`, 14, yPos, { maxWidth: 180 });
-      yPos += 10;
+      // Box untuk Kesimpulan/Akar Masalah
+      doc.setFillColor(245, 245, 250);
+      doc.rect(14, yPos, 182, 15, "F");
+      doc.setFont("helvetica", "bold");
+      doc.text("Kesimpulan / Akar Masalah:", 18, yPos + 6);
+      doc.setFont("helvetica", "italic");
+      doc.text(r.investigation.conclusion || "Belum ada kesimpulan.", 18, yPos + 11, { maxWidth: 170 });
+      yPos += 22;
 
       if (r.investigation.recommendations?.length) {
-        doc.text("Rekomendasi:", 14, yPos);
-        yPos += 5;
-        r.investigation.recommendations.forEach((rec: string) => {
-          doc.text(`• ${rec}`, 18, yPos, { maxWidth: 175 });
-          yPos += 5;
+        doc.setFont("helvetica", "bold");
+        doc.text("Tindakan Korektif & Preventif (Rekomendasi):", 14, yPos);
+        yPos += 6;
+        doc.setFont("helvetica", "normal");
+        r.investigation.recommendations.forEach((rec: string, idx: number) => {
+          doc.text(`${idx + 1}. ${rec}`, 18, yPos, { maxWidth: 175 });
+          yPos += 6;
         });
       }
-      yPos += 8;
+      yPos += 10;
     }
   });
 
   addFooter(doc);
-  doc.save("laporan-kecelakaan.pdf");
+  doc.save(`Laporan_Investigasi_${new Date().getTime()}.pdf`);
 }

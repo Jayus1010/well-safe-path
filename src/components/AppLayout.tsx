@@ -1,5 +1,9 @@
+import { useState, useMemo } from "react";
 import { NavLink, Outlet } from "react-router-dom";
-import { Shield, AlertTriangle, ClipboardCheck, FileKey, Car, LayoutDashboard } from "lucide-react";
+import { Shield, AlertTriangle, ClipboardCheck, FileKey, Car, LayoutDashboard, BarChart3 } from "lucide-react";
+import NotificationBell from "./NotificationBell";
+import { generateNotifications, Notification } from "@/lib/notifications";
+import { hazardReports, inspections, workPermits, accidentReports } from "@/lib/k3-data";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -7,12 +11,18 @@ const navItems = [
   { to: "/inspections", icon: ClipboardCheck, label: "Inspeksi" },
   { to: "/work-permits", icon: FileKey, label: "Ijin Kerja" },
   { to: "/accidents", icon: Car, label: "Kecelakaan" },
+  { to: "/statistics", icon: BarChart3, label: "Statistik" },
 ];
 
 const AppLayout = () => {
+  const initialNotifs = useMemo(() => generateNotifications(hazardReports, workPermits, accidentReports, inspections), []);
+  const [notifications, setNotifications] = useState<Notification[]>(initialNotifs);
+
+  const markRead = (id: string) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  const markAllRead = () => setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+
   return (
     <div className="flex min-h-screen">
-      {/* Sidebar */}
       <aside className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col shrink-0">
         <div className="p-5 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
@@ -49,8 +59,10 @@ const AppLayout = () => {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 overflow-auto">
+        <div className="flex justify-end p-3 border-b border-border">
+          <NotificationBell notifications={notifications} onMarkRead={markRead} onMarkAllRead={markAllRead} />
+        </div>
         <Outlet />
       </main>
     </div>

@@ -9,6 +9,7 @@ import HazardReports from "./pages/HazardReports";
 import Inspections from "./pages/Inspections";
 import WorkPermits from "./pages/WorkPermits";
 import AccidentReports from "./pages/AccidentReports";
+import Statistics from "./pages/Statistics";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ const App = () => (
             <Route path="/inspections" element={<Inspections />} />
             <Route path="/work-permits" element={<WorkPermits />} />
             <Route path="/accidents" element={<AccidentReports />} />
+            <Route path="/statistics" element={<Statistics />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Car, Plus, MapPin, User, Calendar, Users, AlertTriangle, FileDown, Fish, HelpCircle } from "lucide-react";
+import { Car, Plus, MapPin, User, Calendar, Users, AlertTriangle, FileDown, Fish, HelpCircle, FileText } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea"; // Import Textarea untuk kronologi
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AccidentReport, Status, Priority, getStatusVariant, getStatusLabel, getPriorityColor } from "@/lib/k3-data";
 import { accidentReports as initialReports } from "@/lib/k3-data";
@@ -17,6 +18,7 @@ import { exportAccidentReportsPDF } from "@/lib/pdf-export";
 import InvestigationDialog from "@/components/InvestigationDialog";
 
 interface ExtendedAccident extends AccidentReport {
+  description?: string; // Tambahan field deskripsi awal
   classificationData?: AccidentClassificationData;
   investigation?: Investigation;
 }
@@ -33,7 +35,8 @@ const AccidentReports = () => {
     toast({ title: "Status diperbarui", description: `Kasus ${id} diubah ke ${getStatusLabel(newStatus)}` });
   };
 
-  const handleAdd = (e: React.FormEvent<HTMLFormElement>) => {
+  // HANDLER LAPORAN AWAL (Flash Report) - Data minimalis
+  const handleAddInitialReport = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
     const newReport: ExtendedAccident = {
@@ -45,27 +48,37 @@ const AccidentReports = () => {
       status: "open",
       injuredCount: parseInt(form.get("injuredCount") as string) || 0,
       investigator: form.get("investigator") as string,
-      classificationData: {
-        classification: form.get("classification") as AccidentClassification,
-        injuryType: form.get("injuryType") as InjuryType,
-        bodyPart: form.get("bodyPart") as BodyPart,
-        cause: form.get("cause") as AccidentCause,
-        agent: form.get("agent") as AgentOfAccident,
-        lostWorkDays: parseInt(form.get("lostWorkDays") as string) || 0,
-      },
+      description: form.get("description") as string,
+      // Klasifikasi dikosongkan dulu, diisi saat investigasi
     };
     setReports(prev => [newReport, ...prev]);
     setDialogOpen(false);
-    toast({ title: "Laporan kecelakaan dibuat", description: `${newReport.id} memerlukan investigasi` });
+    toast({ title: "Laporan Awal Diterima", description: `Segera lakukan investigasi untuk ${newReport.id}` });
   };
 
+  // HANDLER SIMPAN DATA FINAL (Investigasi + Klasifikasi)
   const handleSaveInvestigation = (investigation: Investigation) => {
     if (!investigationTarget) return;
+    
+    // Di sini kita bisa menambahkan logika untuk mengisi classificationData secara otomatis atau manual
     setReports(prev => prev.map(r =>
-      r.id === investigationTarget.id ? { ...r, investigation, rootCause: investigation.conclusion } : r
+      r.id === investigationTarget.id ? { 
+        ...r, 
+        investigation, 
+        rootCause: investigation.conclusion,
+        // Contoh default data final (bisa dikembangkan dengan form input tambahan)
+        classificationData: r.classificationData || {
+          classification: "sedang",
+          injuryType: "luka_gores",
+          bodyPart: "tangan",
+          cause: "unsafe_act",
+          agent: "mesin",
+          lostWorkDays: 0,
+        }
+      } : r
     ));
     setInvestigationTarget(null);
-    toast({ title: "Investigasi disimpan", description: `Hasil analisis ${investigation.method === "fishbone" ? "Fishbone" : "5-Why"} berhasil disimpan` });
+    toast({ title: "Investigasi & Data Final Disimpan", description: `Kasus siap ditinjau untuk penutupan.` });
   };
 
   return (
@@ -74,116 +87,59 @@ const AccidentReports = () => {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Car className="w-7 h-7 text-destructive" />
-            Investigasi Kecelakaan
+            Laporan & Investigasi Kecelakaan
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">Laporan, klasifikasi, dan investigasi kecelakaan kerja</p>
+          <p className="text-muted-foreground text-sm mt-1">Alur: Laporan Awal (Flash Report) → Investigasi → Data Final</p>
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={() => exportAccidentReportsPDF(reports)}>
-            <FileDown className="w-4 h-4 mr-2" />PDF
+            <FileDown className="w-4 h-4 mr-2" />Export PDF
           </Button>
+          
+          {/* DIALOG LAPORAN AWAL (FLASH REPORT) */}
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button><Plus className="w-4 h-4 mr-2" />Laporkan Kecelakaan</Button>
+              <Button className="bg-destructive hover:bg-destructive/90"><Plus className="w-4 h-4 mr-2" />Lapor Kejadian (Flash)</Button>
             </DialogTrigger>
-            <DialogContent className="bg-card border-border max-h-[90vh] overflow-y-auto">
-              <DialogHeader><DialogTitle>Laporan Kecelakaan Baru</DialogTitle></DialogHeader>
-              <form onSubmit={handleAdd} className="space-y-4">
-                <div><Label>Judul Kejadian</Label><Input name="title" required className="mt-1" /></div>
+            <DialogContent className="bg-card border-border max-w-lg">
+              <DialogHeader><DialogTitle>Flash Report - Laporan Awal Kecelakaan</DialogTitle></DialogHeader>
+              <form onSubmit={handleAddInitialReport} className="space-y-4">
+                <div><Label>Judul Kejadian / Judul Kecelakaan</Label><Input name="title" placeholder="Contoh: Terjepit mesin conveyor" required className="mt-1" /></div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Lokasi</Label><Input name="location" required className="mt-1" /></div>
-                  <div><Label>Tanggal</Label><Input name="date" type="date" required className="mt-1" /></div>
+                  <div><Label>Lokasi Kejadian</Label><Input name="location" required className="mt-1" /></div>
+                  <div><Label>Tanggal & Waktu</Label><Input name="date" type="datetime-local" required className="mt-1" /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div><Label>Jumlah Korban</Label><Input name="injuredCount" type="number" min="0" defaultValue="0" className="mt-1" /></div>
-                  <div><Label>Investigator</Label><Input name="investigator" required className="mt-1" /></div>
+                  <div><Label>Pelapor Awal</Label><Input name="investigator" placeholder="Nama Pelapor" required className="mt-1" /></div>
                 </div>
                 <div>
-                  <Label>Severity</Label>
+                  <Label>Estimasi Keparahan Awal</Label>
                   <Select name="severity" defaultValue="medium">
                     <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="low">Low</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                      <SelectItem value="critical">Critical</SelectItem>
+                      <SelectItem value="low">Low (P3K)</SelectItem>
+                      <SelectItem value="medium">Medium (Rawat Jalan)</SelectItem>
+                      <SelectItem value="high">High (Cacat/Rawat Inap)</SelectItem>
+                      <SelectItem value="critical">Critical (Fatality)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-
-                {/* Classification Section */}
-                <div className="border-t border-border pt-4">
-                  <h4 className="font-semibold text-sm mb-3">Klasifikasi Kecelakaan (PP 50/2012 & ILO)</h4>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <Label>Klasifikasi</Label>
-                      <Select name="classification" defaultValue="sedang">
-                        <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(classificationLabels).map(([k, v]) => (
-                            <SelectItem key={k} value={k}>{v}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>Jenis Cedera (ILO)</Label>
-                      <Select name="injuryType" defaultValue="luka_gores">
-                        <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(injuryTypeLabels).map(([k, v]) => (
-                            <SelectItem key={k} value={k}>{v}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>Bagian Tubuh</Label>
-                      <Select name="bodyPart" defaultValue="tangan">
-                        <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(bodyPartLabels).map(([k, v]) => (
-                            <SelectItem key={k} value={k}>{v}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>Penyebab</Label>
-                      <Select name="cause" defaultValue="unsafe_act">
-                        <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(causeLabels).map(([k, v]) => (
-                            <SelectItem key={k} value={k}>{v}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>Agen Kecelakaan (ILO)</Label>
-                      <Select name="agent" defaultValue="mesin">
-                        <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {Object.entries(agentLabels).map(([k, v]) => (
-                            <SelectItem key={k} value={k}>{v}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>Hari Kerja Hilang</Label>
-                      <Input name="lostWorkDays" type="number" min="0" defaultValue="0" className="mt-1" />
-                    </div>
-                  </div>
+                <div>
+                  <Label>Kronologi Singkat Kejadian</Label>
+                  <Textarea name="description" placeholder="Ceritakan singkat kronologi kejadian di lapangan..." className="mt-1 h-24" />
                 </div>
-
-                <Button type="submit" className="w-full">Simpan Laporan</Button>
+                <div className="bg-secondary/20 p-3 rounded-md text-[10px] text-muted-foreground italic">
+                  *Data investigasi mendalam (Root Cause, Hari Hilang, Klasifikasi ILO) dilakukan pada tahap selanjutnya.
+                </div>
+                <Button type="submit" className="w-full">Kirim Laporan Awal</Button>
               </form>
             </DialogContent>
           </Dialog>
         </div>
       </div>
 
+      {/* LIST LAPORAN */}
       <div className="grid gap-4">
         {reports.map(report => (
           <Card key={report.id} className="glass-card hover:border-primary/30 transition-colors cursor-pointer"
@@ -197,138 +153,69 @@ const AccidentReports = () => {
                     <span className={`text-xs font-semibold uppercase ${getPriorityColor(report.severity)}`}>
                       <AlertTriangle className="w-3 h-3 inline mr-1" />{report.severity}
                     </span>
-                    {report.classificationData && (
-                      <Badge variant={getClassificationBadgeVariant(report.classificationData.classification)}>
-                        {classificationLabels[report.classificationData.classification]}
-                      </Badge>
-                    )}
-                    {report.investigation && (
-                      <Badge variant="closed" className="text-xs">
-                        {report.investigation.method === "fishbone" ? <Fish className="w-3 h-3 mr-1 inline" /> : <HelpCircle className="w-3 h-3 mr-1 inline" />}
-                        {report.investigation.method === "fishbone" ? "Fishbone" : "5-Why"}
-                      </Badge>
-                    )}
+                    {report.investigation && <Badge className="bg-blue-600">Investigasi Selesai</Badge>}
                   </div>
-                  <h3 className="font-semibold text-base">{report.title}</h3>
+                  <h3 className="font-semibold text-lg">{report.title}</h3>
                   <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground flex-wrap">
                     <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{report.location}</span>
                     <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{report.date}</span>
-                    <span className="flex items-center gap-1"><User className="w-3 h-3" />{report.investigator}</span>
-                    <span className="flex items-center gap-1"><Users className="w-3 h-3" />{report.injuredCount} korban</span>
+                    <span className="flex items-center gap-1"><Users className="w-3 h-3" />{report.injuredCount} Korban</span>
                   </div>
                 </div>
-                {report.status !== "closed" && (
-                  <div className="flex gap-2 ml-4 flex-wrap" onClick={e => e.stopPropagation()}>
-                    {report.status === "open" && (
-                      <Button size="sm" variant="secondary" onClick={() => handleStatusChange(report.id, "in_progress")}>
-                        Investigasi
-                      </Button>
-                    )}
-                    {report.status === "in_progress" && !report.investigation && (
-                      <Button size="sm" variant="secondary" onClick={() => setInvestigationTarget(report)}>
-                        <Fish className="w-3 h-3 mr-1" />Analisis
-                      </Button>
-                    )}
-                    {report.status === "in_progress" && report.investigation && (
-                      <Button size="sm" onClick={() => handleStatusChange(report.id, "closed")}>
-                        Tutup Kasus
-                      </Button>
-                    )}
-                  </div>
-                )}
+
+                {/* TOMBOL AKSI BERDASARKAN STATUS */}
+                <div className="flex gap-2 ml-4" onClick={e => e.stopPropagation()}>
+                  {report.status === "open" && (
+                    <Button size="sm" variant="outline" className="border-primary text-primary" onClick={() => handleStatusChange(report.id, "in_progress")}>
+                      Mulai Investigasi
+                    </Button>
+                  )}
+                  {report.status === "in_progress" && !report.investigation && (
+                    <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => setInvestigationTarget(report)}>
+                      <Fish className="w-3 h-3 mr-1" />Analisis Root Cause
+                    </Button>
+                  )}
+                  {report.status === "in_progress" && report.investigation && (
+                    <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleStatusChange(report.id, "closed")}>
+                      Tutup Kasus (Final)
+                    </Button>
+                  )}
+                </div>
               </div>
 
+              {/* DETAIL EXPANSION */}
               {selectedReport?.id === report.id && (
-                <div className="mt-4 pt-4 border-t border-border space-y-4">
-                  {/* Status progress */}
-                  <div>
-                    <p className="text-sm font-medium mb-2">Status Investigasi</p>
-                    <div className="flex items-center gap-2">
-                      {["open", "in_progress", "closed"].map((s, i) => (
-                        <div key={s} className="flex items-center gap-2">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                            (s === "open" && ["open", "in_progress", "closed"].includes(report.status)) ||
-                            (s === "in_progress" && ["in_progress", "closed"].includes(report.status)) ||
-                            (s === "closed" && report.status === "closed")
-                              ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
-                          }`}>{i + 1}</div>
-                          {i < 2 && <div className={`w-12 h-0.5 ${
-                            (s === "open" && ["in_progress", "closed"].includes(report.status)) ||
-                            (s === "in_progress" && report.status === "closed") ? "bg-primary" : "bg-secondary"
-                          }`} />}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex gap-6 mt-1 text-xs text-muted-foreground">
-                      <span>Lapor</span><span className="ml-4">Investigasi</span><span className="ml-2">Selesai</span>
-                    </div>
+                <div className="mt-4 pt-4 border-t border-border space-y-4 animate-in slide-in-from-top-2">
+                  
+                  {/* Kronologi Awal */}
+                  <div className="bg-secondary/10 p-3 rounded-lg border-l-4 border-destructive">
+                    <p className="text-sm font-bold flex items-center gap-1"><FileText className="w-4 h-4" /> Kronologi Awal:</p>
+                    <p className="text-sm text-muted-foreground mt-1">{report.description || "Tidak ada deskripsi tambahan."}</p>
                   </div>
 
-                  {/* Classification details */}
+                  {/* Jika sudah ada data investigasi, tampilkan Klasifikasi K3 */}
                   {report.classificationData && (
                     <div className="bg-secondary/30 rounded-lg p-3">
-                      <p className="text-sm font-medium mb-2">Klasifikasi (PP 50/2012 & ILO)</p>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-                        <div><span className="text-muted-foreground">Klasifikasi:</span> <span className="font-medium">{classificationLabels[report.classificationData.classification]}</span></div>
-                        <div><span className="text-muted-foreground">Cedera:</span> <span className="font-medium">{injuryTypeLabels[report.classificationData.injuryType]}</span></div>
-                        <div><span className="text-muted-foreground">Bagian Tubuh:</span> <span className="font-medium">{bodyPartLabels[report.classificationData.bodyPart]}</span></div>
-                        <div><span className="text-muted-foreground">Penyebab:</span> <span className="font-medium">{causeLabels[report.classificationData.cause]}</span></div>
-                        <div><span className="text-muted-foreground">Agen:</span> <span className="font-medium">{agentLabels[report.classificationData.agent]}</span></div>
-                        <div><span className="text-muted-foreground">Hari Hilang:</span> <span className="font-medium">{report.classificationData.lostWorkDays} hari</span></div>
+                      <p className="text-sm font-semibold mb-2">Data Final (PP 50/2012 & ILO)</p>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                        <div className="bg-background p-2 rounded shadow-sm"><span className="text-muted-foreground block">Klasifikasi:</span> <b>{classificationLabels[report.classificationData.classification]}</b></div>
+                        <div className="bg-background p-2 rounded shadow-sm"><span className="text-muted-foreground block">Jenis Cedera:</span> <b>{injuryTypeLabels[report.classificationData.injuryType]}</b></div>
+                        <div className="bg-background p-2 rounded shadow-sm"><span className="text-muted-foreground block">Bagian Tubuh:</span> <b>{bodyPartLabels[report.classificationData.bodyPart]}</b></div>
+                        <div className="bg-background p-2 rounded shadow-sm"><span className="text-muted-foreground block">Agen Penyebab:</span> <b>{agentLabels[report.classificationData.agent]}</b></div>
+                        <div className="bg-background p-2 rounded shadow-sm text-destructive"><span className="text-muted-foreground block">Hari Hilang:</span> <b>{report.classificationData.lostWorkDays} Hari</b></div>
                       </div>
                     </div>
                   )}
 
-                  {/* Investigation results */}
+                  {/* Hasil Analisis Root Cause */}
                   {report.investigation && (
-                    <div className="bg-secondary/30 rounded-lg p-3">
-                      <p className="text-sm font-medium mb-2">
-                        Hasil Investigasi ({report.investigation.method === "fishbone" ? "Fishbone / Ishikawa" : "5-Why Analysis"})
+                    <div className="bg-blue-50/10 border border-blue-500/30 rounded-lg p-3">
+                      <p className="text-sm font-bold text-blue-400 mb-2 flex items-center gap-2">
+                        {report.investigation.method === "fishbone" ? <Fish className="w-4 h-4"/> : <HelpCircle className="w-4 h-4"/>}
+                        Hasil Analisis {report.investigation.method === "fishbone" ? "Fishbone" : "5-Why"}
                       </p>
-                      {report.investigation.method === "fishbone" && report.investigation.fishbone && (
-                        <div className="space-y-2">
-                          <p className="text-xs text-muted-foreground">Problem: {report.investigation.fishbone.problem}</p>
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                            {report.investigation.fishbone.categories.filter(c => c.causes.length > 0).map(cat => (
-                              <div key={cat.name} className="text-xs">
-                                <p className="font-medium text-primary">{cat.name}</p>
-                                <ul className="list-disc list-inside text-muted-foreground">
-                                  {cat.causes.map((c, i) => <li key={i}>{c}</li>)}
-                                </ul>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {report.investigation.method === "five_why" && report.investigation.fiveWhy && (
-                        <div className="space-y-2 text-xs">
-                          {report.investigation.fiveWhy.whys.filter(w => w.answer).map((w, i) => (
-                            <div key={i}><span className="text-primary font-medium">Why #{i + 1}:</span> <span className="text-muted-foreground">{w.answer}</span></div>
-                          ))}
-                          <div><span className="font-medium">Root Cause:</span> <span className="text-muted-foreground">{report.investigation.fiveWhy.rootCause}</span></div>
-                          <div><span className="font-medium">Korektif:</span> <span className="text-muted-foreground">{report.investigation.fiveWhy.corrective}</span></div>
-                          <div><span className="font-medium">Preventif:</span> <span className="text-muted-foreground">{report.investigation.fiveWhy.preventive}</span></div>
-                        </div>
-                      )}
-                      <div className="mt-2 text-xs">
-                        <p className="font-medium">Kesimpulan:</p>
-                        <p className="text-muted-foreground">{report.investigation.conclusion}</p>
-                      </div>
-                      {report.investigation.recommendations && report.investigation.recommendations.length > 0 && (
-                        <div className="mt-2 text-xs">
-                          <p className="font-medium">Rekomendasi:</p>
-                          <ul className="list-disc list-inside text-muted-foreground">
-                            {report.investigation.recommendations.map((r, i) => <li key={i}>{r}</li>)}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {report.rootCause && !report.investigation && (
-                    <div>
-                      <p className="text-sm font-medium">Root Cause</p>
-                      <p className="text-sm text-muted-foreground mt-1">{report.rootCause}</p>
+                      <p className="text-xs font-medium">Akar Masalah:</p>
+                      <p className="text-sm italic text-muted-foreground">"{report.investigation.conclusion}"</p>
                     </div>
                   )}
                 </div>
@@ -338,6 +225,7 @@ const AccidentReports = () => {
         ))}
       </div>
 
+      {/* MODAL INVESTIGASI (Fishbone/5-Why) */}
       {investigationTarget && (
         <InvestigationDialog
           open={!!investigationTarget}

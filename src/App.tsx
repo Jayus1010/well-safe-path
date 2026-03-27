@@ -19,7 +19,8 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      {/* Tambahkan basename agar navigasi React tahu aplikasi ada di sub-folder */}
+      <BrowserRouter basename="/well-safe-path">
         <Routes>
           <Route element={<AppLayout />}>
             <Route path="/" element={<Dashboard />} />
